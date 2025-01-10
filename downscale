@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+for f in *jpg; do
+  if [ ! -e 1920/$f ]; then
+    echo $f 1920
+    magick $f -resize 1920 1920/$f
+  fi
+done
