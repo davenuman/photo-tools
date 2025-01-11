@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+
+if [ "${1}" == "" ]; then
+  echo -e "\n  Commit EXIF = cexif"
+  echo -e "\nEdit an exif image description similar to a git commit."
+  echo -e "\nUsage: cexif PATTERN\nWhere PATTERN is used to find image files."
+  echo -e "Example to match JPG and RAF versions of a specific image:"
+  echo -e "\n\t cexif DSF1234\n"
+  exit
+fi
+
+# Aditional search paths:
+addPaths="${HOME}/mnt/sandisk/DCIM/"
+search=${1}
+export DEBUG=''
+export exifLabel="ImageDescription"
+export tempfile=$(mktemp)
+
+[ -n "${DEBUG}" ] && echo "Including ${addPaths} in search for [${search}]. Using $EDITOR"
+
+echo -e "\n# First line of this file is used for the ${exifLabel}." >>${tempfile}
+echo -e "# An empty line aborts the change." >>${tempfile}
+echo -e "#\n# Files to be modified, and their current value" >>${tempfile}
+echo -e "# (remove to exclude from editing):\n" >>${tempfile}
+
+function check_img {
+  file=${1}
+  desc=$(exiftool -s3 -${exifLabel} ${file})
+  [ -n "${desc}" ] && desc="${desc}\n"
+  echo -e "# file: ${file}\n${desc}" >>${tempfile}
+}
+
+function write_img {
+  echo "New description: [${@}]"
+  targetFiles=$(grep "file:" ${tempfile} | awk '{print $NF}')
+  if [ -z "${targetFiles}" ]; then
+    echo "No target files. Aborting."
+    exit
+  fi
+  exiftool -${exifLabel}="${@}" ${targetFiles}
+  exiftool -delete_original! ${targetFiles}
+}
+export -f check_img
+export -f write_img
+
+find -L . "${addPaths}" -name "*${search}*" -exec bash -c 'check_img $@' bash {} \;
+
+$EDITOR ${tempfile}
+
+# xargs used only to trim whitespace.
+export newDesc=$(head -1 ${tempfile} | xargs)
+
+if [ -z "${newDesc}" ]; then
+  echo "Aborting operation"
+  exit
+fi
+
+write_img "${newDesc}"
+
+rm ${tempfile}
